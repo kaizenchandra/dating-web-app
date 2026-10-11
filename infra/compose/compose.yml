@@ -1,0 +1,223 @@
+name: raahi
+x-node: &node
+  build:
+    context: ../..
+    dockerfile: infra/compose/Dockerfile.node
+  restart: unless-stopped
+  init: true
+x-env: &env
+  APP_ENV: ${APP_ENV:?Run npm run local:env}
+  REDIS_URL: redis://redis:6379
+  PORT: 4000
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: raahi_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Missing database password}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U raahi_admin -d postgres"]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      retries: 20
+  identity:
+    <<: *node
+    environment:
+      <<: *env
+      SERVICE_TOKEN: ${IDENTITY_SERVICE_TOKEN:?Run npm run local:env}
+      SERVICE_TOKENS: >-
+        {"connections":"${CONNECTIONS_SERVICE_TOKEN:?Run npm run local:env}", "communication":"${COMMUNICATION_SERVICE_TOKEN:?Run npm run local:env}", "profile-discovery":"${PROFILE_DISCOVERY_SERVICE_TOKEN:?Run npm run local:env}", "commerce-operations":"${COMMERCE_OPERATIONS_SERVICE_TOKEN:?Run npm run local:env}"}
+      SERVICE_NAME: identity
+      DATABASE_URL: postgres://identity:${DB_PASSWORD}@postgres:5432/identity?sslmode=disable
+      OTP_PEPPER: ${OTP_PEPPER:?Missing OTP pepper}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      LOCAL_TEST_DELIVERY: ${LOCAL_TEST_DELIVERY:-enabled}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+      SMS_ADAPTER_URL: ${SMS_ADAPTER_URL:-}
+      SMS_ADAPTER_TOKEN: ${SMS_ADAPTER_TOKEN:-}
+    command: [node, --import, tsx, services/identity/main.ts]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  communication:
+    <<: *node
+    environment:
+      <<: *env
+      SERVICE_TOKEN: ${COMMUNICATION_SERVICE_TOKEN:?Run npm run local:env}
+      SERVICE_TOKENS: >-
+        {"identity":"${IDENTITY_SERVICE_TOKEN:?Run npm run local:env}", "connections":"${CONNECTIONS_SERVICE_TOKEN:?Run npm run local:env}", "commerce-operations":"${COMMERCE_OPERATIONS_SERVICE_TOKEN:?Run npm run local:env}", "profile-discovery":"${PROFILE_DISCOVERY_SERVICE_TOKEN:?Run npm run local:env}"}
+      WEBRTC_ICE_SERVERS: ${WEBRTC_ICE_SERVERS:-[]}
+      TURN_URLS: ${TURN_URLS:-[]}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
+      WEBRTC_RELAY_ONLY: ${WEBRTC_RELAY_ONLY:-false}
+      SERVICE_NAME: communication
+      DATABASE_URL: postgres://communication:${DB_PASSWORD}@postgres:5432/communication?sslmode=disable
+    command: [node, --import, tsx, services/communication/main.ts]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  commerce-operations:
+    <<: *node
+    environment:
+      <<: *env
+      SERVICE_TOKEN: ${COMMERCE_OPERATIONS_SERVICE_TOKEN:?Run npm run local:env}
+      SERVICE_TOKENS: >-
+        {"identity":"${IDENTITY_SERVICE_TOKEN:?Run npm run local:env}", "connections":"${CONNECTIONS_SERVICE_TOKEN:?Run npm run local:env}", "profile-discovery":"${PROFILE_DISCOVERY_SERVICE_TOKEN:?Run npm run local:env}", "communication":"${COMMUNICATION_SERVICE_TOKEN:?Run npm run local:env}"}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_PLAN_ID: ${RAZORPAY_PLAN_ID:-}
+      RAZORPAY_GOLD_PLAN_ID: ${RAZORPAY_GOLD_PLAN_ID:-}
+      RAZORPAY_DIAMOND_PLAN_ID: ${RAZORPAY_DIAMOND_PLAN_ID:-}
+      RAZORPAY_PLATINUM_PLAN_ID: ${RAZORPAY_PLATINUM_PLAN_ID:-}
+      PREMIUM_GOLD_INR: ${PREMIUM_GOLD_INR:-499}
+      PREMIUM_DIAMOND_INR: ${PREMIUM_DIAMOND_INR:-999}
+      PREMIUM_PLATINUM_INR: ${PREMIUM_PLATINUM_INR:-1499}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
+      SERVICE_NAME: commerce-operations
+      DATABASE_URL: postgres://commerce_operations:${DB_PASSWORD}@postgres:5432/commerce_operations?sslmode=disable
+    command: [node, --import, tsx, services/commerce-operations/main.ts]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  profile-discovery:
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.go
+      args:
+        SERVICE: profile-discovery
+    environment:
+      <<: *env
+      SERVICE_TOKEN: ${PROFILE_DISCOVERY_SERVICE_TOKEN:?Run npm run local:env}
+      SERVICE_TOKENS: >-
+        {"identity":"${IDENTITY_SERVICE_TOKEN:?Run npm run local:env}", "connections":"${CONNECTIONS_SERVICE_TOKEN:?Run npm run local:env}", "commerce-operations":"${COMMERCE_OPERATIONS_SERVICE_TOKEN:?Run npm run local:env}"}
+      S3_ENDPOINT: media:9000
+      S3_ACCESS_KEY: raahi_media
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      LOCAL_TEST_DELIVERY: ${LOCAL_TEST_DELIVERY:-enabled}
+      SERVICE_NAME: profile-discovery
+      DATABASE_URL: postgres://profile_discovery:${DB_PASSWORD}@postgres:5432/profile_discovery?sslmode=disable
+    depends_on:
+      media: {condition: service_healthy}
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  connections:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.go
+      args:
+        SERVICE: connections
+    environment:
+      <<: *env
+      SERVICE_TOKEN: ${CONNECTIONS_SERVICE_TOKEN:?Run npm run local:env}
+      SERVICE_TOKENS: >-
+        {"commerce-operations":"${COMMERCE_OPERATIONS_SERVICE_TOKEN:?Run npm run local:env}", "identity":"${IDENTITY_SERVICE_TOKEN:?Run npm run local:env}", "profile-discovery":"${PROFILE_DISCOVERY_SERVICE_TOKEN:?Run npm run local:env}", "communication":"${COMMUNICATION_SERVICE_TOKEN:?Run npm run local:env}"}
+      SERVICE_NAME: connections
+      DATABASE_URL: postgres://connections:${DB_PASSWORD}@postgres:5432/connections?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  media:
+    image: chrislusf/seaweedfs:4.00
+    entrypoint: [sh, /config/media-entrypoint.sh]
+    environment:
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Missing S3 secret}
+    volumes:
+      - media:/data
+      - ./media-entrypoint.sh:/config/media-entrypoint.sh:ro
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://media:9333/cluster/status']
+      interval: 3s
+      retries: 30
+  turn:
+    image: coturn/coturn:4.6.3
+    profiles: [relay]
+    entrypoint: [sh, /config/turn-entrypoint.sh]
+    environment:
+      APP_ENV: ${APP_ENV}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
+    volumes:
+      - ./turn-entrypoint.sh:/config/turn-entrypoint.sh:ro
+    ports:
+      - "127.0.0.1:3478:3478/udp"
+      - "127.0.0.1:3478:3478/tcp"
+      - "127.0.0.1:49160-49180:49160-49180/udp"
+  edge:
+    image: nginx:1.28-alpine
+    profiles: [edge]
+    environment:
+      EDGE_PROXY_TOKEN: ${EDGE_PROXY_TOKEN:?Run npm run local:env}
+    volumes:
+      - ../edge/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports: ["127.0.0.1:3080:8080"]
+    depends_on: [web]
+  gateway:
+    <<: *node
+    environment:
+      <<: *env
+      SERVICE_TOKEN: ${GATEWAY_SERVICE_TOKEN:?Run npm run local:env}
+      SERVICE_TOKENS: >-
+        {"identity":"${IDENTITY_SERVICE_TOKEN:?Run npm run local:env}", "communication":"${COMMUNICATION_SERVICE_TOKEN:?Run npm run local:env}", "commerce-operations":"${COMMERCE_OPERATIONS_SERVICE_TOKEN:?Run npm run local:env}", "profile-discovery":"${PROFILE_DISCOVERY_SERVICE_TOKEN:?Run npm run local:env}", "connections":"${CONNECTIONS_SERVICE_TOKEN:?Run npm run local:env}"}
+      WEB_PROXY_TOKEN: ${WEB_PROXY_TOKEN:?Run npm run local:env}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+    ports: ["127.0.0.1:4000:4000"]
+    depends_on:
+      [
+        identity,
+        communication,
+        commerce-operations,
+        profile-discovery,
+        connections,
+      ]
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:4000/api/v1/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      retries: 30
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.web
+    environment:
+      APP_ENV: ${APP_ENV}
+      EDGE_PROXY_TOKEN: ${EDGE_PROXY_TOKEN:-}
+      GATEWAY_URL: http://gateway:4000
+      SERVICE_TOKEN: ${WEB_PROXY_TOKEN:?Run npm run local:env}
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      gateway: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      retries: 30
+volumes:
+  postgres:
+  redis:
+  media:

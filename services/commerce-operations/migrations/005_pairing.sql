@@ -1,0 +1,3 @@
+CREATE TABLE buddy_invitations(id uuid PRIMARY KEY,event_id uuid NOT NULL REFERENCES community_events(id),inviter_id uuid NOT NULL,invitee_id uuid NOT NULL,status text NOT NULL DEFAULT 'pending',created_at timestamptz NOT NULL DEFAULT now(),CHECK(inviter_id<>invitee_id));
+CREATE UNIQUE INDEX pending_buddy_pair ON buddy_invitations(event_id,least(inviter_id,invitee_id),greatest(inviter_id,invitee_id)) WHERE status IN ('pending','accepted');
+CREATE TABLE event_buddies(event_id uuid NOT NULL REFERENCES community_events(id),account_id uuid NOT NULL,invitation_id uuid NOT NULL REFERENCES buddy_invitations(id),PRIMARY KEY(event_id,account_id));

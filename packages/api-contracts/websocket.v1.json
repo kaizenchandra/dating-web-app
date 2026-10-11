@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "endpoint": "/api/v1/socket",
+  "authentication": "Session cookie and exact Origin at gateway; authenticated internal upgrade",
+  "clientMessages": {
+    "subscribe": {
+      "type": "subscribe",
+      "conversationId": "uuid"
+    },
+    "call.signal": {
+      "type": "call.signal",
+      "callId": "uuid",
+      "description": "optional RTCSessionDescriptionInit (offer/answer, max 100000 SDP characters)",
+      "candidate": "optional RTCIceCandidateInit"
+    }
+  },
+  "serverMessages": {
+    "subscribed": {
+      "type": "subscribed",
+      "version": 1,
+      "conversationId": "uuid"
+    },
+    "message.available": {
+      "type": "message.available",
+      "version": 1,
+      "id": "outbox UUID",
+      "conversationId": "uuid",
+      "sequence": "integer"
+    },
+    "call.signal": {
+      "type": "call.signal",
+      "version": 1,
+      "callId": "uuid",
+      "targetId": "authenticated recipient UUID",
+      "description": "optional offer/answer",
+      "candidate": "optional ICE candidate"
+    }
+  },
+  "semantics": "Events are at-least-once hints after durable persistence. Fetch canonical history after subscribe/reconnect. Deduplicate by message ID and order by sequence. Read/delivery receipts use authenticated HTTP. Session expiry, permission loss and unavailable safety authority close with code 1008.",
+  "callSemantics": "Only accepted calls permit signalling; session, active match and both participant eligibility are checked authoritatively. Signals are ephemeral. Reconnect fetches canonical call state and restarts ICE; no media is recorded. Maximum frame size 131072 bytes."
+}

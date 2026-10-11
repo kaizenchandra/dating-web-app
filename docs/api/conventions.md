@@ -1,0 +1,9 @@
+# API and event conventions
+
+Versioned public HTTP base: /api/v1. OpenAPI source is packages/api-contracts/openapi.v1.json. Generate browser types using npm run contracts. Authentication, state transitions, pagination and operation permissions must be specified as each slice is introduced. Do not expose planned endpoints as working API methods.
+
+Errors: {error: {code, message, fieldErrors?, correlationId}}. 400 malformed input; 401 invalid session; 403 forbidden/restricted; 404 unavailable resource without existence disclosure; 409 conflict; 413 oversized input; 422 field validation; 429 throttled with Retry-After; 503 unavailable dependency. Server logs must not contain bodies, cookies, OTPs, government IDs, tokens or biometrics.
+
+Private and group message retries use authenticated sender plus clientMessageId; changed content under the same key returns 409. Relationship actions assign state, event registration is unique per member, and active-match uniqueness is enforced in PostgreSQL. Checkout permits one unresolved subscription per account; ambiguous provider creation blocks further checkout until reconciled. Webhooks deduplicate provider event IDs and fetch authoritative subscription state. Discovery uses a stable UUID cursor; message history uses monotonic sequence cursors. Cookies are HttpOnly, SameSite=Lax, Secure over deployed HTTPS. State-changing browser requests require exact same-origin validation. Never accept client-supplied actor IDs as authority.
+
+Event v1 envelope is defined in events.v1.schema.json. Domain producers own event versions. Consumers must not assume global order. Aggregate versions detect stale updates; safety actions still require synchronous authoritative permission checks. Events avoid unnecessary personal data. WebSocket delivery must not acknowledge before durable message commit.

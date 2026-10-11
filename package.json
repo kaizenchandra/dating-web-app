@@ -1,26 +1,48 @@
 {
-  "name": "dating-web-app",
+  "name": "raahi",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "next dev apps/web",
+    "build": "next build apps/web",
+    "start": "next start apps/web",
+    "lint": "eslint apps services packages tests",
+    "typecheck": "tsc --noEmit",
+    "contracts": "openapi-typescript packages/api-contracts/openapi.v1.json -o packages/generated-clients/schema.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "check": "npm run contracts && npm run typecheck && npm run lint && npm test",
+    "local:env": "node infra/scripts/local-env.mjs",
+    "local:up": "docker compose --env-file .env.local -f infra/compose/compose.yml up --build -d --wait",
+    "local:down": "docker compose --env-file .env.local -f infra/compose/compose.yml down"
   },
   "dependencies": {
     "next": "16.4.0",
+    "openid-client": "^6.8.8",
+    "pg": "^8.23.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "redis": "^6.3.0",
+    "sharp": "^0.35.5",
+    "ws": "^8.22.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }

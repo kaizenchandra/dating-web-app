@@ -1,0 +1,2 @@
+CREATE TABLE deletion_jobs(id uuid PRIMARY KEY,account_id uuid NOT NULL UNIQUE,receipt_hash text UNIQUE NOT NULL,status text NOT NULL DEFAULT 'pending',steps jsonb NOT NULL DEFAULT '{}',attempts integer NOT NULL DEFAULT 0,next_attempt_at timestamptz NOT NULL DEFAULT now(),last_error text,created_at timestamptz NOT NULL DEFAULT now(),completed_at timestamptz);
+ALTER TABLE consent_history ADD COLUMN action text NOT NULL DEFAULT 'granted';

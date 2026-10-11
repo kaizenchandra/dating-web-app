@@ -1,0 +1,1 @@
+CREATE TABLE wellbeing(account_id uuid PRIMARY KEY REFERENCES accounts(id),locale text NOT NULL DEFAULT 'en',quiet_enabled boolean NOT NULL DEFAULT false,quiet_start integer NOT NULL DEFAULT 22,quiet_end integer NOT NULL DEFAULT 8,read_receipts boolean NOT NULL DEFAULT false);

@@ -1,0 +1,5 @@
+CREATE TABLE hosts(account_id uuid PRIMARY KEY,reason text NOT NULL,status text NOT NULL DEFAULT 'pending',review_reason text NOT NULL DEFAULT '',updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE communities(id uuid PRIMARY KEY,host_id uuid NOT NULL,name text NOT NULL,city text NOT NULL,interest text NOT NULL,description text NOT NULL,closed boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE community_members(group_id uuid NOT NULL REFERENCES communities(id),account_id uuid NOT NULL,joined_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(group_id,account_id));
+CREATE TABLE community_events(id uuid PRIMARY KEY,group_id uuid NOT NULL REFERENCES communities(id),title text NOT NULL,kind text NOT NULL,venue text NOT NULL,starts_at timestamptz NOT NULL,capacity integer NOT NULL CHECK(capacity BETWEEN 2 AND 30),status text NOT NULL DEFAULT 'open',created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE event_registrations(event_id uuid NOT NULL REFERENCES community_events(id),account_id uuid NOT NULL,PRIMARY KEY(event_id,account_id));

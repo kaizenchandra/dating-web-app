@@ -1,0 +1,31 @@
+name: verify
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24, cache: npm}
+      - uses: actions/setup-go@v5
+        with: {go-version: "1.25", cache-dependency-path: "services/**/go.sum"}
+      - run: npm ci
+      - run: go test ./...
+        working-directory: services/profile-discovery
+      - run: go test ./...
+        working-directory: services/connections
+      - run: npm run check
+      - run: git diff --exit-code packages/generated-clients/schema.ts
+      - run: npm run local:env
+      - run: node infra/scripts/local-relay.mjs
+      - run: docker compose --env-file .env.local -f infra/compose/compose.yml --profile relay --profile edge up --build -d --wait
+      - run: node infra/scripts/test-edge.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: node infra/scripts/test-media-recovery.mjs
+      - run: npm run test:e2e
+        env: {EXPECT_TURN_RELAY: "1"}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: {name: browser-failures, path: test-results, retention-days: 3}
+      - if: always()
+        run: docker compose --env-file .env.local -f infra/compose/compose.yml logs --tail=80

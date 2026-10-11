@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS staff_roles(account_id uuid PRIMARY KEY, role text NOT NULL CHECK(role IN ('moderator','admin')), created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS review_audit(id uuid PRIMARY KEY, actor_id uuid NOT NULL, target_id uuid NOT NULL, kind text NOT NULL, decision text NOT NULL, reason text NOT NULL, status text NOT NULL DEFAULT 'requested', created_at timestamptz NOT NULL DEFAULT now());
